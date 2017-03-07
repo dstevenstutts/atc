@@ -81,8 +81,10 @@ year = {2017}}
 #define HEATER_PIN 3 // PWM output pin
 ///////// Chip Select Pins //////
 #define SDCS 10// SPI CS for SD card
-#define MAX31856_CS1 4// SPI CS for first MAX31856 thermocouple interface
-#define MAX31856_CS2 5// SPI CS for second MAX31856 thermocouple interface
+//#define MAX31856_CS1 4// SPI CS for first MAX31856 thermocouple interface
+#define MAX31856_CS1 42// SPI CS for first MAX31856 thermocouple interface
+//#define MAX31856_CS2 5// SPI CS for second MAX31856 thermocouple interface
+#define MAX31856_CS2 43// SPI CS for second MAX31856 thermocouple interface
 #define MAX31856_CS3 6// SPI CS for third MAX31856 thermocouple interface
 #define MAX31856_CS4 7// SPI CS for fourth MAX31856 thermocouple interface
 #define MAX31856_CS5 8// SPI CS for fifth MAX31856 thermocouple interface
@@ -104,12 +106,15 @@ volatile char *inbuffPtr = inbuff;
 volatile unsigned int InputBufferIndex;
 unsigned long numDataPoints = 0;// Counts the number of datapoints acquired
 boolean parseCommands = false;
-char HourStr[3];
-char MinuteStr[3];
-char SecondStr[3];
+char HourStr[6];
+char MinuteStr[6];
+char SecondStr[6];
 char kpStr[10];
 char kiStr[10];
 char kdStr[10];
+char YearStr[6];
+char MonthStr[6];
+char DayStr[6];
 
 File DataFile;
 String FileName = "";
@@ -128,6 +133,9 @@ boolean set_Time = false;
 boolean set_Hour = false;
 boolean set_Minute = false;
 boolean set_Second = false;
+boolean set_Year = false;
+boolean set_Month = false;
+boolean set_Day = false;
 boolean setGains = false;
 boolean setKp = false;
 boolean setKi = false;
@@ -213,7 +221,7 @@ struct PID_Gains{
   double Ki;
   double Kd;
 };
-byte Year;
+unsigned int Year;
 byte Month;
 byte Day;
 byte Hour;
@@ -467,6 +475,9 @@ void parseSerialInput(void) {
     boolean hourSet = false;
     boolean minuteSet = false;
     boolean secondSet = false;
+    boolean monthSet = false;
+    boolean daySet = false;
+    boolean yearSet = false;
     boolean kpSet = false;
     boolean kiSet = false;
     boolean kdSet = false;
@@ -477,6 +488,9 @@ void parseSerialInput(void) {
     byte k = 0;
     byte l = 0;
     byte j = 0;
+    byte o = 0;
+    byte q = 0;
+    byte p = 0;
 //
 // Read the first command character and parse accordingly:
 //
@@ -543,6 +557,21 @@ if(*inbuffPtr=='t'){//Time functions
 
     while ((*inbuffPtr != '\0')) {
         switch (*inbuffPtr) {
+            case 'Y':
+            case 'y':
+                yearSet = true;
+                set_Year = true;
+                break;
+            case 'R':
+            case 'r':
+                monthSet = true;
+                set_Month = true;
+                break;
+            case 'D':
+            case 'd':
+                daySet = true;
+                set_Day = true;
+                break;
             case 'h':
             case 'H':
                 hourSet = true;
@@ -559,43 +588,104 @@ if(*inbuffPtr=='t'){//Time functions
                 secondSet = true;
                 set_Second = true;
                 break;
+            
+               
             default: 
     if ((*inbuffPtr >= '0') && (*inbuffPtr <= '9')) {// Make sure they're numeric!
-            if(secondSet&&i<3){
+ 
+            if(secondSet&&i<6){
                 SecondStr[i] = *inbuffPtr;
+                yearSet = false;
+                monthSet = false;
+                daySet = false;
                 hourSet = false;
+            
                 minuteSet = false;
                 i++;
             }
-            else if (i>=3||(atoi(SecondStr)>59))//Trap some potential errors.
+            else if (i>=6||(atoi(SecondStr)>59))//Trap some potential errors.
             {
               Serial.print("Erroneous second setting!\n");
               set_Time = false;
               return;
             }
-            if(minuteSet&&j<3){
+            if(minuteSet&&j<6){
                 MinuteStr[j] = *inbuffPtr;
+                yearSet = false;
+                monthSet = false;
+                daySet = false;
                 hourSet = false;
                 secondSet = false;
                 j++;
             }
-            else if (j>=3||(atoi(MinuteStr)>59))
+            else if (j>=6||(atoi(MinuteStr)>59))
             {
               Serial.print("Erroneous minute setting!\n");
               set_Time = false;
               return;
             }
-            if(hourSet&&(atoi(HourStr)<25)&&k<3){
+            if(hourSet&&(atoi(HourStr)<25)&&k<6){
                 HourStr[k] = *inbuffPtr;
+                yearSet = false;
+                monthSet = false;
+                daySet = false;
                 minuteSet = false;
                 secondSet = false;
                 k++;
             }
-            else if (k>=3||(atoi(HourStr)>24))
+            else if (k>=6||(atoi(HourStr)>24))
             {
               Serial.print("Erroneous hour setting!\n");
               set_Time = false;
               return;
+            } 
+            if(daySet&&(atoi(DayStr)<32)&&p<6){
+              DayStr[p] = *inbuffPtr;
+              yearSet = false;
+              monthSet = false;
+              hourSet = false;
+              minuteSet = false;
+              secondSet = false;
+              p++;
+            }
+            else if (p>=6||(atoi(DayStr)>31))
+            {
+              Serial.print("Erroneous hour setting!\n");
+              set_Time = false;
+              return;
+            }
+            if(monthSet&&(atoi(MonthStr)<13)&&o<6){
+              MonthStr[o] = *inbuffPtr;
+              yearSet = false;
+              daySet = false;
+              hourSet = false;
+              minuteSet = false;
+              secondSet = false;
+              o++;
+            }
+            else if (o>=6||(atoi(MonthStr)>12))
+            {
+              Serial.print("Erroneous hour setting!\n");
+              set_Time = false;
+              return;
+            }
+            if(yearSet&&(atoi(YearStr)<100)&&q<6){
+              YearStr[q] = *inbuffPtr;
+              monthSet = false;
+              daySet = false;
+              hourSet = false;
+              minuteSet = false;
+              secondSet = false;
+              q++;
+            }
+            else if (q>=6||(atoi(YearStr)>99))
+            {
+              Serial.print("Erroneous hour setting!\n");
+              set_Time = false;
+              return;
+              
+              
+              
             }
     }
      break;
@@ -919,16 +1009,32 @@ void loop()
     Serial.print('\n');
     tellTime = false;
   }
+ 
+      
+  
 
   if(set_Time){
     // Currently we can only set hour, minute and second...
-    DateTime now = rtc.now(); 
+    DateTime now = rtc.now();
+    if(set_Year){
+      rtc.adjust(DateTime(atoi(YearStr), now.month(), now.day(), now.hour(), now.minute(), now.second()));
+      set_Year = false;
+    } 
+    if(set_Month){
+      rtc.adjust(DateTime(now.year(),atoi(MonthStr), now.day(), now.hour(), now.minute(), now.second()));
+      set_Month = false;
+    }
+    if(set_Day){
+      rtc.adjust(DateTime(now.year(), now.month(),atoi(DayStr), now.hour(), now.minute(), now.second()));
+      set_Day = false;
+    }
     if(set_Hour){
       rtc.adjust(DateTime(now.year(), now.month(), now.day(), atoi(HourStr), now.minute(), now.second()));
       set_Hour = false;
     }
     if(set_Minute){
-      rtc.adjust(DateTime(Year, Month, Day, Hour, atoi(MinuteStr), now.second()));
+     // rtc.adjust(DateTime(Year, Month, Day, Hour, atoi(MinuteStr), now.second()));
+     rtc.adjust(DateTime(now.year(), now.month(), now.day(), now.hour(), atoi(MinuteStr), now.second()));
       set_Minute = false;
     }
     if(set_Second){
@@ -1009,6 +1115,8 @@ void loop()
     while(allOff);//Stop here now!
   }
 }
+ 
+
 ////////////  End Main Loop /////////////////
 
 
